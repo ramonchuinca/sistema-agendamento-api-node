@@ -1,79 +1,97 @@
-const Agendamento = require('../models/Agendamento')
-const Usuario = require('../models/Usuario')
+// controllers/agendamentoController.js
+const Agendamento = require('../models/Agendamento');
+const Usuario = require('../models/Usuario');
 
 function gerarHorarios() {
-  return ['08:00', '08:20', '08:40', '09:00', '09:20']
+  return ['08:00', '08:20', '08:40', '09:00', '09:20'];
 }
 
 exports.horariosDisponiveis = async (req, res) => {
-  const dataStr = req.params.data
-  const todos = gerarHorarios()
+  try {
+    const dataStr = req.params.data;
+    const todos = gerarHorarios();
 
-  const data = new Date(dataStr)
-  const inicioDia = new Date(data.setHours(0, 0, 0, 0))
-  const fimDia = new Date(data.setHours(23, 59, 59, 999))
+    const data = new Date(dataStr);
+    const inicioDia = new Date(data.setHours(0, 0, 0, 0));
+    const fimDia = new Date(data.setHours(23, 59, 59, 999));
 
-  const agendados = await Agendamento.find({
-    data: { $gte: inicioDia, $lte: fimDia }
-  }).select('hora')
+    const agendados = await Agendamento.find({
+      data: { $gte: inicioDia, $lte: fimDia }
+    }).select('hora');
 
-  const ocupados = agendados.map(a => a.hora)
-  const livres = todos.filter(h => !ocupados.includes(h))
-  res.json(livres)
-}
-
-exports.agendar = async (req, res) => {
-  const { data: dataStr, hora, usuario_id } = req.body
-
-  const data = new Date(dataStr)
-  const inicioDia = new Date(data.setHours(0, 0, 0, 0))
-  const fimDia = new Date(data.setHours(23, 59, 59, 999))
-
-  // Valida horário permitido
-  const horariosPermitidos = gerarHorarios()
-  if (!horariosPermitidos.includes(hora)) {
-    return res.status(400).json({ erro: 'Horário inválido' })
+    const ocupados = agendados.map(a => a.hora);
+    const livres = todos.filter(h => !ocupados.includes(h));
+    res.json(livres);
+  } catch (err) {
+    console.error('Erro ao buscar horários disponíveis:', err);
+    res.status(500).json({ erro: 'Erro interno ao buscar horários' });
   }
+};
 
-  // Verifica se o horário já está ocupado
-  const agendamentoNoHorario = await Agendamento.findOne({
-    data: { $gte: inicioDia, $lte: fimDia },
-    hora
-  })
-  if (agendamentoNoHorario) {
-    return res.status(400).json({ erro: 'Horário já ocupado' })
+exports.store = async (req, res) => {
+  try {
+    const { data: dataStr, hora, usuario_id } = req.body;
+
+    if (!dataStr || !hora || !usuario_id) {
+      return res.status(400).json({ erro: 'Dados incompletos.' });
+    }
+
+    const [ano, mes, dia] = dataStr.split('-').map(Number);
+const data = new Date(ano, mes - 1, dia); // data limpa, sem hora
+
+    const diaSemana = data.getDay(); // 0 = domingo, 6 = sábado
+    if (diaSemana === 0 || diaSemana === 6) {
+      return res.status(400).json({ erro: 'Agendamento não permitido aos sábados ou domingos.' });
+    }
+
+    const horariosPermitidos = gerarHorarios();
+    if (!horariosPermitidos.includes(hora)) {
+      return res.status(400).json({ erro: 'Horário inválido.' });
+    }
+
+    const usuario = await Usuario.findById(usuario_id);
+    if (!usuario) {
+      return res.status(404).json({ erro: 'Usuário não encontrado.' });
+    }
+
+    const agendamentosMesmoHorario = await Agendamento.countDocuments({ data, hora });
+    if (agendamentosMesmoHorario >= 2) {
+      return res.status(400).json({ erro: 'Esse horário já está cheio.' });
+    }
+
+    const agendamento = new Agendamento({
+      data,
+      hora,
+      usuario_id
+    });
+
+    await agendamento.save();
+
+    return res.status(201).json({ mensagem: 'Agendamento realizado com sucesso!' });
+  } catch (error) {
+    console.error('Erro ao criar agendamento:', error);
+    return res.status(500).json({ erro: 'Erro interno no servidor.' });
   }
-
-  // Verifica se o usuário existe
-  const usuario = await Usuario.findById(usuario_id)
-  if (!usuario) {
-    return res.status(404).json({ erro: 'Usuário não encontrado' })
-  }
-
-  // Cria o agendamento
-  const agendamento = await Agendamento.create({ data, hora, usuario })
-  res.json({ mensagem: 'Agendado com sucesso', agendamento })
-}
+};
 
 exports.listarPainel = async (req, res) => {
   try {
-    // const token = req.query.token;
-    // if (token !== process.env.PAINEL_TOKEN) {
-    //   return res.status(403).json({ erro: 'Acesso negado' });
-    // }
+    const token = req.query.token;
+    if (token !== process.env.PAINEL_TOKEN) {
+      return res.status(403).json({ erro: 'Acesso negado' });
+    }
 
     const agendamentos = await Agendamento.find()
-      .populate('usuario')
+      .populate('usuario_id')
       .sort({ data: 1, hora: 1 });
-
-    console.log('Agendamentos encontrados:', agendamentos);
 
     res.json(agendamentos);
   } catch (error) {
     console.error('ERRO NO PAINEL SECRETO:', error);
     res.status(500).json({ erro: 'Erro ao buscar agendamentos' });
   }
-}
+};
+
 
 
   
