@@ -1,8 +1,8 @@
 const express = require('express')
 const router = express.Router()
 
-const usuarioCtrl = require('../controllers/UsuarioController')
-const agendamentoCtrl = require('../controllers/AgendamentoController')
+const usuarioCtrl = require('../controllers/usuarioController')
+const agendamentoCtrl = require('../controllers/agendamentoController')
 
 router.get('/',(req,res)=>{res.json({mensage:'efetuado com sucesso'})})
 
