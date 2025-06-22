@@ -4,9 +4,17 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
+
+// ✅ CORS corrigido
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://seu-site.netlify.app']
+  origin: [
+    'http://localhost:5173',
+    'https://sistema-agendamento-academy.netlify.app'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true // Coloque true se for usar cookies/autenticação com sessão
 }));
+
 app.use(express.json());
 
 app.use('/api', require('./routes'));
