@@ -29,6 +29,7 @@ exports.store = async (req, res) => {
     }
 
     const usuario = await Usuario.findById(usuario_id);
+    console.log(usuario)
     if (!usuario) {
       return res.status(404).json({ erro: 'Usuário não encontrado.' });
     }
@@ -41,7 +42,7 @@ exports.store = async (req, res) => {
     const agendamento = new Agendamento({
       data,
       hora,
-      usuario_id: usuario._id
+      usuario_id: usuario_id
     });
 
     await agendamento.save();
@@ -53,6 +54,7 @@ exports.store = async (req, res) => {
     return res.status(500).json({ erro: 'Erro interno no servidor.' });
   }
 };
+
 
 // Horários disponíveis
 exports.horariosDisponiveis = async (req, res) => {
@@ -119,25 +121,52 @@ exports.vagasRestantes = async (req, res) => {
 // const Agendamento = require('../models/Agendamento');
 // const Usuario = require('../models/Usuario');
 
+// const mongoose = require('mongoose');
+
+// const Agendamento = require('../models/Agendamento'); // certifique-se que esse import exista
+// const mongoose = require('mongoose');
+
 exports.listarPainel = async (req, res) => {
   try {
     const hoje = new Date();
     const ano = hoje.getFullYear();
-    const mes = hoje.getMonth(); // de 0 a 11
+    const mes = hoje.getMonth();
 
-    const primeiroDia = new Date(ano, mes, 1); // Ex: 01/06/2025
-    const ultimoDia = new Date(ano, mes + 1, 0, 23, 59, 59, 999); // Ex: 30/06/2025 às 23:59
+    const primeiroDia = new Date(ano, mes, 1);
+    const ultimoDia = new Date(ano, mes + 1, 0, 23, 59, 59, 999);
 
-    const agendamentos = await Agendamento.find({})
+    const agendamentos = await Agendamento.find({
+      data: { $gte: primeiroDia, $lte: ultimoDia }
+    })
+      .populate('usuario_id', 'nome peso altura telefone') // ← ESSENCIAL!
+      .sort({ data: 1, hora: 1 });
       
+    const users=await Usuario.find({})
+    console.log('resposta',users)
+    const arr =agendamentos.map((agendamento)=>{
+      const user =users.find((u)=>u._id==agendamento.usuario_id)
+      return{
+        nome:user?.nome,
+        peso:user?.peso,
+        altura:user?.altura,
+        telefone:user?.telefone,
+        data:agendamento.data,
+        hora:agendamento.hora
 
-    console.log('✅ Agendamentos do mês:', agendamentos.length);
-    res.json(agendamentos);
+        
+      }
+    })
+
+    console.log('✅ Agendamentos retornados:', agendamentos.length);
+    res.json(arr);
   } catch (error) {
-    console.error('❌ Erro ao listar agendamentos do mês:', error);
+    console.error('❌ Erro ao listar agendamentos:', error);
     res.status(500).json({ erro: 'Erro ao listar agendamentos' });
   }
 };
+
+
+
 
 
 

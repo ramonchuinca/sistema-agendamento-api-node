@@ -1,10 +1,11 @@
 const mongoose = require('mongoose');
 
-const usuarioSchema = new mongoose.Schema({
+const UsuarioSchema = new mongoose.Schema({
   nome: String,
   peso: Number,
   altura: Number,
-  telefone: String // 👈 novo campo adicionado
+  telefone: String
 });
 
-module.exports = mongoose.model('Usuario', usuarioSchema);
+module.exports = mongoose.model('Usuario', UsuarioSchema); // <== esse "Usuario" precisa bater com o ref no Agendamento
+

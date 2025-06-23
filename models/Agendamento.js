@@ -1,10 +1,17 @@
 const mongoose = require('mongoose');
 
-const agendamentoSchema = new mongoose.Schema({
-
-  data: String,
+const AgendamentoSchema = new mongoose.Schema({
+  usuario_id: mongoose.Schema.Types.ObjectId,
+  nome: String,
+  peso: Number,
+  altura: Number,
+  telefone: String,
+  data: Date,
   hora: String
 });
 
-module.exports = mongoose.model('Agendamento', agendamentoSchema);
+module.exports = mongoose.model('Agendamento', AgendamentoSchema);
+
+
+
 
