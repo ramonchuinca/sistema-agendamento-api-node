@@ -1,4 +1,3 @@
-// controllers/agendamentoController.js
 const Agendamento = require('../models/Agendamento');
 const Usuario = require('../models/Usuario');
 
@@ -6,24 +5,20 @@ function gerarHorarios() {
   return ['08:00', '08:20', '08:40', '09:00', '09:20'];
 }
 
-// ✅ Mantido o nome do export
-exports.horariosDisponiveis = async (req, res) => {
- try {
+// Criar agendamento
+exports.store = async (req, res) => {
+  try {
     const { data: dataStr, hora, usuario_id } = req.body;
 
     if (!dataStr || !hora || !usuario_id) {
       return res.status(400).json({ erro: 'Dados incompletos.' });
     }
 
-    // Cria data local limpa (sem UTC!)
     const [ano, mes, dia] = dataStr.split('-').map(Number);
-    const data = new Date(ano, mes - 1, dia); // Ex: new Date(2025, 5, 23)
-
-    // Garante que seja meia-noite local para não alterar dia
+    const data = new Date(ano, mes - 1, dia);
     data.setHours(0, 0, 0, 0);
 
-    const diaSemana = data.getDay(); // aqui pega corretamente: 0 (domingo) até 6 (sábado)
-
+    const diaSemana = data.getDay();
     if (diaSemana === 0 || diaSemana === 6) {
       return res.status(400).json({ erro: 'Agendamento não permitido aos sábados ou domingos.' });
     }
@@ -38,23 +33,19 @@ exports.horariosDisponiveis = async (req, res) => {
       return res.status(404).json({ erro: 'Usuário não encontrado.' });
     }
 
-    // Checagem de conflitos de horário
-    const agendamentosMesmoHorario = await Agendamento.countDocuments({
-      data,
-      hora
-    });
-
-    if (agendamentosMesmoHorario >= 2) {
+    const agendamentosMesmoHorario = await Agendamento.countDocuments({ data, hora });
+    if (agendamentosMesmoHorario >= 1) {
       return res.status(400).json({ erro: 'Esse horário já está cheio.' });
     }
 
     const agendamento = new Agendamento({
       data,
       hora,
-      usuario: usuario._id
+      usuario_id: usuario._id
     });
 
     await agendamento.save();
+
     return res.status(201).json({ mensagem: 'Agendamento realizado com sucesso!' });
 
   } catch (error) {
@@ -63,8 +54,71 @@ exports.horariosDisponiveis = async (req, res) => {
   }
 };
 
+// Horários disponíveis
+exports.horariosDisponiveis = async (req, res) => {
+  try {
+    const dataStr = req.params.data;
+    const todos = gerarHorarios();
+
+    const data = new Date(dataStr);
+    const inicioDia = new Date(data.setHours(0, 0, 0, 0));
+    const fimDia = new Date(data.setHours(23, 59, 59, 999));
+
+    const agendados = await Agendamento.find({
+      data: { $gte: inicioDia, $lte: fimDia }
+    }).select('hora');
+
+    const ocupados = agendados.map(a => a.hora);
+    const livres = todos.filter(h => !ocupados.includes(h));
+
+    res.json(livres);
+  } catch (err) {
+    console.error('Erro ao buscar horários disponíveis:', err);
+    res.status(500).json({ erro: 'Erro interno ao buscar horários' });
+  }
+};
+
+// Vagas restantes por horário
+exports.vagasRestantes = async (req, res) => {
+  try {
+    const dataStr = req.query.data;
+    if (!dataStr) return res.status(400).json({ erro: 'Data é obrigatória' });
+
+    const data = new Date(dataStr);
+    const inicioDia = new Date(data.setHours(0, 0, 0, 0));
+    const fimDia = new Date(data.setHours(23, 59, 59, 999));
+
+    const horarios = gerarHorarios();
+    const agendados = await Agendamento.find({
+      data: { $gte: inicioDia, $lte: fimDia }
+    }).select('hora');
+
+    const contagemPorHorario = {};
+    for (const h of horarios) {
+      contagemPorHorario[h] = 1; // 1 vaga por horário
+    }
+
+    for (const ag of agendados) {
+      if (contagemPorHorario[ag.hora] !== undefined) {
+        contagemPorHorario[ag.hora] = Math.max(0, contagemPorHorario[ag.hora] - 1);
+      }
+    }
+
+    res.json(contagemPorHorario);
+  } catch (err) {
+    console.error('Erro ao buscar vagas por horário:', err);
+    res.status(500).json({ erro: 'Erro interno ao buscar vagas por horário' });
+  }
+};
+
+// Painel administrativo protegido por token
 exports.listarPainel = async (req, res) => {
-try {
+  try {
+    const token = req.query.token;
+    if (token !== process.env.PAINEL_TOKEN) {
+      return res.status(403).json({ erro: 'Acesso negado' });
+    }
+
     const agendamentos = await Agendamento.find()
       .populate('usuario_id', 'nome peso altura')
       .sort({ data: 1, hora: 1 });
@@ -73,49 +127,12 @@ try {
       _id: ag._id,
       data: ag.data,
       hora: ag.hora,
-      usuario: ag.usuario_id,
+      usuario: ag.usuario_id
     }));
 
     res.json(resultado);
-  } catch (err) {
-    console.error("Erro ao buscar agendamentos com usuários:", err);
-    res.status(500).json({ erro: "Erro ao buscar dados" });
+  } catch (error) {
+    console.error('ERRO NO PAINEL SECRETO:', error);
+    res.status(500).json({ erro: 'Erro ao buscar agendamentos' });
   }
 };
-
-
-
-  
-  exports.vagasRestantes = async (req, res) => {
-  try {
-    const dataStr = req.query.data
-    if (!dataStr) return res.status(400).json({ erro: 'Data é obrigatória' })
-  
-    const data = new Date(dataStr)
-    const inicioDia = new Date(data.setHours(0, 0, 0, 0))
-    const fimDia = new Date(data.setHours(23, 59, 59, 999))
-  
-    const horarios = gerarHorarios()
-  
-    const agendados = await Agendamento.find({
-      data: { $gte: inicioDia, $lte: fimDia }
-    }).select('hora')
-  
-    const contagemPorHorario = {}
-    for (const h of horarios) {
-      contagemPorHorario[h] = 1 // apenas 1 vaga por horário
-    }
-  
-    for (const ag of agendados) {
-      if (contagemPorHorario[ag.hora] !== undefined) {
-        contagemPorHorario[ag.hora] = Math.max(0, contagemPorHorario[ag.hora] - 1)
-      }
-    }
-  
-    res.json(contagemPorHorario)
-  } catch (err) {
-    console.error('Erro ao buscar vagas por horário:', err)
-    res.status(500).json({ erro: 'Erro interno ao buscar vagas por horário' })
-  }
-  }
-
