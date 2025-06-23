@@ -112,43 +112,8 @@ exports.vagasRestantes = async (req, res) => {
 };
 
 
-// controllers/agendamentoController.js
-// const Agendamento = require('../models/Agendamento');
-// const Usuario = require('../models/Usuario');
-
-// controllers/agendamentoController.js
-// const Agendamento = require('../models/Agendamento');
-// const Usuario = require('../models/Usuario');
-
-exports.listarPainel = async (req, res) => {
-  try {
-    const hoje = new Date();
-    const dataHoje = hoje.toISOString().split('T')[0]; // Formato "YYYY-MM-DD"
-
-    const agendamentos = await Agendamento.find({ data: dataHoje })
-      .populate('usuario_id', 'nome telefone')
-      .sort({ hora: 1 });
-
-    res.json(agendamentos);
-  } catch (error) {
-    console.error('Erro ao listar agendamentos:', error);
-    res.status(500).json({ erro: 'Erro ao listar agendamentos' });
-  }
-};
 
 
-
-
-exports.deletarAgendamento = async (req, res) => {
-  try {
-    const id = req.params.id;
-    await Agendamento.findByIdAndDelete(id);
-    res.json({ mensagem: 'Agendamento deletado com sucesso' });
-  } catch (error) {
-    console.error('Erro ao deletar agendamento:', error);
-    res.status(500).json({ erro: 'Erro ao deletar agendamento' });
-  }
-};
 
 
 
