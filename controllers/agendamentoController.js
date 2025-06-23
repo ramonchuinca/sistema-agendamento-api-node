@@ -138,3 +138,16 @@ exports.listarPainel = async (req, res) => {
 };
 
 
+exports.deletarAgendamento = async (req, res) => {
+  try {
+    const id = req.params.id;
+    await Agendamento.findByIdAndDelete(id);
+    res.json({ mensagem: 'Agendamento deletado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar agendamento:', error);
+    res.status(500).json({ erro: 'Erro ao deletar agendamento' });
+  }
+};
+
+
+
