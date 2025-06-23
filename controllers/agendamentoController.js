@@ -111,28 +111,22 @@ exports.vagasRestantes = async (req, res) => {
   }
 };
 
+
 // Painel administrativo protegido por token
+// controllers/agendamentoController.js
+// controllers/agendamentoController.js
+
+
 exports.listarPainel = async (req, res) => {
   try {
-    const token = req.query.token;
-    if (token !== process.env.PAINEL_TOKEN) {
-      return res.status(403).json({ erro: 'Acesso negado' });
-    }
-
     const agendamentos = await Agendamento.find()
-      .populate('usuario_id', 'nome peso altura')
+      .populate('usuario_id', 'nome telefone')
       .sort({ data: 1, hora: 1 });
 
-    const resultado = agendamentos.map(ag => ({
-      _id: ag._id,
-      data: ag.data,
-      hora: ag.hora,
-      usuario: ag.usuario_id
-    }));
-
-    res.json(resultado);
+    res.json(agendamentos);
   } catch (error) {
-    console.error('ERRO NO PAINEL SECRETO:', error);
-    res.status(500).json({ erro: 'Erro ao buscar agendamentos' });
+    console.error('Erro ao listar agendamentos:', error);
+    res.status(500).json({ erro: 'Erro ao listar agendamentos' });
   }
 };
+
