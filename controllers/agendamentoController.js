@@ -114,9 +114,6 @@ exports.vagasRestantes = async (req, res) => {
 
 
 
-// controllers/agendamentoController.js
-// const Agendamento = require('../models/Agendamento');
-// const Usuario = require('../models/Usuario');
 
 // controllers/agendamentoController.js
 // const Agendamento = require('../models/Agendamento');
@@ -131,11 +128,8 @@ exports.listarPainel = async (req, res) => {
     const primeiroDia = new Date(ano, mes, 1); // Ex: 01/06/2025
     const ultimoDia = new Date(ano, mes + 1, 0, 23, 59, 59, 999); // Ex: 30/06/2025 às 23:59
 
-    const agendamentos = await Agendamento.find({
-      data: { $gte: primeiroDia, $lte: ultimoDia }
-    })
-      .populate('usuario_id', 'nome peso altura telefone')
-      .sort({ data: 1, hora: 1 });
+    const agendamentos = await Agendamento.find({})
+      
 
     console.log('✅ Agendamentos do mês:', agendamentos.length);
     res.json(agendamentos);
@@ -144,7 +138,6 @@ exports.listarPainel = async (req, res) => {
     res.status(500).json({ erro: 'Erro ao listar agendamentos' });
   }
 };
-
 
 
 
