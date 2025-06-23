@@ -63,23 +63,18 @@ exports.horariosDisponiveis = async (req, res) => {
   }
 };
 
+
+
 exports.listarComUsuarios = async (req, res) => {
   try {
     const agendamentos = await Agendamento.find()
-      .populate('usuario_id', 'nome peso altura')
-      .sort({ data: 1, hora: 1 });
+      .populate('usuario_id', 'nome peso altura') // só retorna nome, peso, altura do usuário
+      .exec();
 
-    const resultado = agendamentos.map(ag => ({
-      _id: ag._id,
-      data: ag.data,
-      hora: ag.hora,
-      usuario: ag.usuario_id,
-    }));
-
-    res.json(resultado);
-  } catch (err) {
-    console.error("Erro ao buscar agendamentos com usuários:", err);
-    res.status(500).json({ erro: "Erro ao buscar dados" });
+    res.json(agendamentos);
+  } catch (error) {
+    console.error('Erro ao listar agendamentos:', error);
+    res.status(500).json({ erro: 'Erro interno ao listar agendamentos' });
   }
 };
 
