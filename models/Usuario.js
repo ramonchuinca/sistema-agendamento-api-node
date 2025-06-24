@@ -7,5 +7,4 @@ const UsuarioSchema = new mongoose.Schema({
   telefone: String
 });
 
-module.exports = mongoose.model('Usuario', UsuarioSchema); // <== esse "Usuario" precisa bater com o ref no Agendamento
-
+module.exports = mongoose.model('Usuario', UsuarioSchema); // << ESSE NOME PRECISA SER 'Usuario'
