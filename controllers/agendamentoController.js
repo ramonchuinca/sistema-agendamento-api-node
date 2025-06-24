@@ -105,6 +105,11 @@ exports.horariosDisponiveis = async (req, res) => {
 
 
 
+
+
+
+
+
 // Vagas restantes por horário
 
 exports.vagasRestantes = async (req, res) => {
@@ -139,6 +144,14 @@ exports.vagasRestantes = async (req, res) => {
     res.status(500).json({ erro: "Erro ao carregar vagas." });
   }
 };
+
+
+
+
+
+
+
+
 
 
 
