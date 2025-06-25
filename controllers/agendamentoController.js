@@ -17,44 +17,69 @@ function gerarHorarios() {
   return horarios;
 }
 
-/* ───────── 1) Criar ───────── */
+
+/* ───────── 1) Criar (store) ───────── */
 exports.store = async (req, res) => {
   try {
     const { usuario_id, data, hora } = req.body;
     if (!usuario_id || !data || !hora)
       return res.status(400).json({ erro: 'Campos obrigatórios ausentes.' });
 
+    // ─── Usuário existe? ────────────────────────────────────────────────
     const usuario = await Usuario.findById(usuario_id);
     if (!usuario)
       return res.status(404).json({ erro: 'Usuário não encontrado.' });
 
+    // ─── Datas úteis do dia ­­­──────────────────────────────────────────
     const d        = new Date(data);
-    const inicio   = new Date(d.setHours(0,0,0,0));
-    const fim      = new Date(d.setHours(23,59,59,999));
+    const inicio   = new Date(d.setHours(0, 0, 0, 0));
+    const fim      = new Date(d.setHours(23, 59, 59, 999));
 
-    if (await Agendamento.findOne({ data: { $gte: inicio, $lte: fim }, hora }))
+    /* ➊  BLOQUEIA se o mesmo usuário já tiver um agendamento nesse dia */
+    const jaTem = await Agendamento.findOne({
+      usuario_id,
+      data: { $gte: inicio, $lte: fim }
+    });
+    if (jaTem)
+      return res.status(400).json({
+        erro: 'Você já possui um agendamento nesse dia. ' +
+              'Altere ou cancele o agendamento existente para escolher outro horário.'
+      });
+
+    /* ➋  Horário já ocupado? */
+    const conflito = await Agendamento.findOne({
+      data: { $gte: inicio, $lte: fim },
+      hora
+    });
+    if (conflito)
       return res.status(400).json({ erro: 'Horário já preenchido.' });
 
-    const totalDia = await Agendamento.countDocuments({ data: { $gte: inicio, $lte: fim } });
+    /* ➌  Limite diário (5) atingido? */
+    const totalDia = await Agendamento.countDocuments({
+      data: { $gte: inicio, $lte: fim }
+    });
     if (totalDia >= 5)
       return res.status(400).json({ erro: 'Limite diário de 5 agendamentos atingido.' });
 
+    // ─── Cria o agendamento ────────────────────────────────────────────
     await Agendamento.create({
       usuario_id,
-      nome: usuario.nome,
-      peso: usuario.peso,
-      altura: usuario.altura,
+      nome:     usuario.nome,
+      peso:     usuario.peso,
+      altura:   usuario.altura,
       telefone: usuario.telefone,
       data,
       hora
     });
 
     res.status(201).json({ mensagem: 'Agendamento realizado com sucesso!' });
+
   } catch (err) {
     console.error('Erro ao agendar:', err);
     res.status(500).json({ erro: 'Erro interno ao agendar.' });
   }
 };
+
 
 /* ───────── 2) Horários disponíveis ───────── */
 exports.horariosDisponiveis = async (req, res) => {
