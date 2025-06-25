@@ -9,6 +9,10 @@ router.post('/login', usuarioCtrl.login);
 router.get('/horarios-disponiveis/:data', agendamentoCtrl.horariosDisponiveis);
 router.post('/agendar', agendamentoCtrl.store);
 router.get('/painel-secreto-agendamentos', agendamentoCtrl.listarPainel);
+router.get   ('/meu-agendamento', agendamentoCtrl.meuAgendamento);  // data & usuario
+router.put   ('/agendar/:id', agendamentoCtrl.update);   // editar
+router.delete('/agendar/:id', agendamentoCtrl.remove);   // excluir
+
 
 
 router.get('/vagas-restantes', agendamentoCtrl.vagasRestantes);

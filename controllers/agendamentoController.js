@@ -1,219 +1,199 @@
 // controllers/agendamentoController.js
-
 const Agendamento = require('../models/Agendamento');
-const Usuario = require('../models/Usuario');
+const Usuario     = require('../models/Usuario');
 
-// Função auxiliar para gerar os horários permitidos
+/* ───────── Função auxiliar ───────── */
 function gerarHorarios() {
-  const horarios = [];
-  const inicio = 8 * 60; // 08:00
-  const fim = 9 * 60 + 20; // 09:20
-  const intervalo = 20;
+  const horarios   = [];
+  const inicio     = 8 * 60;        // 08:00
+  const fim        = 9 * 60 + 20;   // 09:20
+  const intervalo  = 20;
 
-  for (let minutos = inicio; minutos <= fim; minutos += intervalo) {
-    const horas = String(Math.floor(minutos / 60)).padStart(2, '0');
-    const mins = String(minutos % 60).padStart(2, '0');
-    horarios.push(`${horas}:${mins}`);
+  for (let m = inicio; m <= fim; m += intervalo) {
+    const h   = String(Math.floor(m / 60)).padStart(2, '0');
+    const min = String(m % 60).padStart(2, '0');
+    horarios.push(`${h}:${min}`);
   }
-
   return horarios;
 }
 
+/* ───────── 1) Criar ───────── */
 exports.store = async (req, res) => {
   try {
     const { usuario_id, data, hora } = req.body;
-
-    if (!usuario_id || !data || !hora) {
-      return res.status(400).json({ erro: "Campos obrigatórios ausentes." });
-    }
+    if (!usuario_id || !data || !hora)
+      return res.status(400).json({ erro: 'Campos obrigatórios ausentes.' });
 
     const usuario = await Usuario.findById(usuario_id);
-    if (!usuario) {
-      return res.status(404).json({ erro: "Usuário não encontrado." });
-    }
+    if (!usuario)
+      return res.status(404).json({ erro: 'Usuário não encontrado.' });
 
-    // Conversão da data
-    const dataObj = new Date(data);
-    const inicioDia = new Date(dataObj.setHours(0, 0, 0, 0));
-    const fimDia = new Date(dataObj.setHours(23, 59, 59, 999));
+    const d        = new Date(data);
+    const inicio   = new Date(d.setHours(0,0,0,0));
+    const fim      = new Date(d.setHours(23,59,59,999));
 
-    // Verifica se já existe alguém nesse horário
-    const horarioOcupado = await Agendamento.findOne({
-      data: { $gte: inicioDia, $lte: fimDia },
-      hora: hora,
-    });
+    if (await Agendamento.findOne({ data: { $gte: inicio, $lte: fim }, hora }))
+      return res.status(400).json({ erro: 'Horário já preenchido.' });
 
-    if (horarioOcupado) {
-      return res.status(400).json({ erro: "Horário já preenchido." });
-    }
+    const totalDia = await Agendamento.countDocuments({ data: { $gte: inicio, $lte: fim } });
+    if (totalDia >= 5)
+      return res.status(400).json({ erro: 'Limite diário de 5 agendamentos atingido.' });
 
-    // Verifica se já atingiu o limite de 5 agendamentos no dia
-    const totalAgendados = await Agendamento.countDocuments({
-      data: { $gte: inicioDia, $lte: fimDia },
-    });
-
-    if (totalAgendados >= 5) {
-      return res.status(400).json({ erro: "Limite diário de 5 agendamentos atingido." });
-    }
-
-    // Salva o agendamento
-    const novoAgendamento = new Agendamento({
+    await Agendamento.create({
       usuario_id,
       nome: usuario.nome,
       peso: usuario.peso,
       altura: usuario.altura,
       telefone: usuario.telefone,
       data,
-      hora,
+      hora
     });
 
-    await novoAgendamento.save();
-    res.status(201).json({ mensagem: "Agendamento realizado com sucesso!" });
+    res.status(201).json({ mensagem: 'Agendamento realizado com sucesso!' });
   } catch (err) {
-    console.error("Erro ao agendar:", err);
-    res.status(500).json({ erro: "Erro interno ao agendar." });
+    console.error('Erro ao agendar:', err);
+    res.status(500).json({ erro: 'Erro interno ao agendar.' });
   }
 };
 
-
-
-
-
-// Horários disponíveis
+/* ───────── 2) Horários disponíveis ───────── */
 exports.horariosDisponiveis = async (req, res) => {
   try {
     const dataStr = req.params.data;
-    const todos = gerarHorarios();
+    const todos   = gerarHorarios();
+    const data    = new Date(dataStr);
 
-    const data = new Date(dataStr);
-    const inicioDia = new Date(data.setHours(0, 0, 0, 0));
-    const fimDia = new Date(data.setHours(23, 59, 59, 999));
+    const inicio  = new Date(data.setHours(0,0,0,0));
+    const fim     = new Date(data.setHours(23,59,59,999));
 
-    const agendados = await Agendamento.find({
-      data: { $gte: inicioDia, $lte: fimDia }
-    }).select('hora');
+    const ocupados = (await Agendamento.find({
+      data: { $gte: inicio, $lte: fim }
+    }).select('hora')).map(a => a.hora);
 
-    const ocupados = agendados.map(a => a.hora);
-    const livres = todos.filter(h => !ocupados.includes(h));
-
-    res.json(livres);
+    res.json(todos.filter(h => !ocupados.includes(h)));
   } catch (err) {
-    console.error('Erro ao buscar horários disponíveis:', err);
+    console.error('Erro ao buscar horários:', err);
     res.status(500).json({ erro: 'Erro interno ao buscar horários' });
   }
 };
 
-
-
-
-
-
-
-
-// Vagas restantes por horário
-
+/* ───────── 3) Vagas restantes ───────── */
 exports.vagasRestantes = async (req, res) => {
   try {
     const dataStr = req.query.data;
-    if (!dataStr) return res.status(400).json({ erro: "Data é obrigatória" });
+    if (!dataStr) return res.status(400).json({ erro: 'Data é obrigatória' });
 
-    const data = new Date(dataStr);
-    const inicioDia = new Date(data.setHours(0, 0, 0, 0));
-    const fimDia = new Date(data.setHours(23, 59, 59, 999));
+    const d        = new Date(dataStr);
+    const inicio   = new Date(d.setHours(0,0,0,0));
+    const fim      = new Date(d.setHours(23,59,59,999));
 
     const horarios = gerarHorarios();
+    const resultado = Object.fromEntries(horarios.map(h => [h, 1]));
 
-    const agendamentos = await Agendamento.find({
-      data: { $gte: inicioDia, $lte: fimDia },
-    }).select("hora");
+    const agendados = await Agendamento.find({
+      data: { $gte: inicio, $lte: fim }
+    }).select('hora');
 
-    const resultado = {};
-    for (const hora of horarios) {
-      resultado[hora] = 1; // Inicialmente há 1 vaga por horário
-    }
-
-    for (const ag of agendamentos) {
-      if (resultado[ag.hora] !== undefined) {
-        resultado[ag.hora] = 0; // Marca como indisponível
-      }
-    }
+    agendados.forEach(a => { if (resultado[a.hora] !== undefined) resultado[a.hora] = 0; });
 
     res.json(resultado);
   } catch (err) {
-    console.error("Erro ao carregar vagas:", err);
-    res.status(500).json({ erro: "Erro ao carregar vagas." });
+    console.error('Erro ao carregar vagas:', err);
+    res.status(500).json({ erro: 'Erro ao carregar vagas.' });
   }
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-// controllers/agendamentoController.js
-// const Agendamento = require('../models/Agendamento');
-// const Usuario = require('../models/Usuario');
-
-// const mongoose = require('mongoose');
-
-// const Agendamento = require('../models/Agendamento'); // certifique-se que esse import exista
-// const mongoose = require('mongoose');
-
+/* ───────── 4) Painel mês corrente ───────── */
 exports.listarPainel = async (req, res) => {
   try {
-    const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = hoje.getMonth();
+    const hoje        = new Date();
+    const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    const ultimoDia   = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0, 23,59,59,999);
 
-    const primeiroDia = new Date(ano, mes, 1);
-    const ultimoDia = new Date(ano, mes + 1, 0, 23, 59, 59, 999);
+    const ags = await Agendamento.find({
+      data: { $gte: primeiroDia, $lte: ultimoDia }
+    })
+      .populate('usuario_id', 'nome peso altura telefone')
+      .sort({ data: 1, hora: 1 });
 
-    const agendamentos = await Agendamento.find({
-  data: { $gte: primeiroDia, $lte: ultimoDia }
-})
-.populate({
-  path: 'usuario_id',
-  select: 'nome peso altura telefone'
-})
-.sort({ data: 1, hora: 1 });
-
-const arr = agendamentos.map((agendamento) => {
-  console.log('🧪 Agendamento completo:', agendamento); // <--- log linha a linha
-
-  return {
-    nome: agendamento.usuario_id?.nome,
-    peso: agendamento.usuario_id?.peso,
-    altura: agendamento.usuario_id?.altura,
-    telefone: agendamento.usuario_id?.telefone,
-    data: agendamento.data,
-    hora: agendamento.hora
-  };
-});
-
-
-
-    console.log('✅ Agendamentos retornados:', arr.length);
-    res.json(arr);
-  } catch (error) {
-    console.error('❌ Erro ao listar agendamentos:', error);
+    res.json(ags.map(a => ({
+      _id:      a._id,
+      nome:     a.usuario_id?.nome,
+      peso:     a.usuario_id?.peso,
+      altura:   a.usuario_id?.altura,
+      telefone: a.usuario_id?.telefone,
+      data:     a.data,
+      hora:     a.hora
+    })));
+  } catch (err) {
+    console.error('Erro ao listar painel:', err);
     res.status(500).json({ erro: 'Erro ao listar agendamentos' });
   }
 };
 
+/* ───────── 5) Buscar meu agendamento do dia ───────── */
+exports.meuAgendamento = async (req, res) => {
+  const { data, usuario } = req.query;
+  if (!data || !usuario) return res.json(null);
 
+  const inicio = new Date(new Date(data).setHours(0,0,0,0));
+  const fim    = new Date(new Date(data).setHours(23,59,59,999));
 
+  const ag = await Agendamento.findOne({
+    usuario_id: usuario,
+    data: { $gte: inicio, $lte: fim }
+  }).select('_id hora');
 
+  res.json(ag); // null ou objeto
+};
 
+/* ───────── 6) Atualizar horário (impede conflito) ───────── */
+exports.update = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { hora } = req.body;
 
+    if (!hora) return res.status(400).json({ erro: 'Novo horário é obrigatório.' });
 
+    const ag = await Agendamento.findById(id);
+    if (!ag) return res.status(404).json({ erro: 'Agendamento não encontrado.' });
 
+    const horariosPermitidos = gerarHorarios();
+    if (!horariosPermitidos.includes(hora))
+      return res.status(400).json({ erro: 'Horário inválido.' });
 
+    const d      = new Date(ag.data);
+    const inicio = new Date(d.setHours(0,0,0,0));
+    const fim    = new Date(d.setHours(23,59,59,999));
 
+    const conflito = await Agendamento.findOne({
+      _id: { $ne: ag._id },
+      data: { $gte: inicio, $lte: fim },
+      hora
+    });
+    if (conflito)
+      return res.status(400).json({ erro: 'Esse horário já está preenchido.' });
 
+    ag.hora = hora;
+    await ag.save();
+
+    res.json({ mensagem: 'Horário atualizado com sucesso!' });
+  } catch (err) {
+    console.error('Erro ao atualizar agendamento:', err);
+    res.status(500).json({ erro: 'Erro interno ao atualizar.' });
+  }
+};
+
+/* ───────── 7) Remover agendamento ───────── */
+exports.remove = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const del = await Agendamento.findByIdAndDelete(id);
+    if (!del) return res.status(404).json({ erro: 'Agendamento não encontrado.' });
+
+    res.json({ mensagem: 'Agendamento removido e horário liberado.' });
+  } catch (err) {
+    console.error('Erro ao excluir:', err);
+    res.status(500).json({ erro: 'Erro interno ao excluir.' });
+  }
+};
