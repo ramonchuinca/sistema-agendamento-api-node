@@ -17,3 +17,4 @@ mongoose.connect(process.env.MONGO_URI).then(() => {
 })
 .then(() => console.log("MongoDB conectado com sucesso"))
 .catch((err) => console.error("Erro ao conectar ao MongoDB:", err));
+
