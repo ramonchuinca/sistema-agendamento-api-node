@@ -17,7 +17,6 @@ function gerarHorarios() {
   return horarios;
 }
 
-
 /* ───────── 1) Criar (store) ───────── */
 exports.store = async (req, res) => {
   try {
@@ -25,17 +24,38 @@ exports.store = async (req, res) => {
     if (!usuario_id || !data || !hora)
       return res.status(400).json({ erro: 'Campos obrigatórios ausentes.' });
 
+    /* ⏲️ Valida janela de horário e se já passou */
+    if (!gerarHorarios().includes(hora))
+      return res.status(400).json({ erro: 'Horário fora da faixa 08:00-09:20.' });
+
+    const agora        = new Date();                           // relógio do servidor
+    const dataReq      = new Date(data);
+    dataReq.setHours(0,0,0,0);
+
+    if (dataReq < new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()))
+      return res.status(400).json({ erro: 'Data já encerrada.' });
+
+    const minutosAgora     = agora.getHours()*60 + agora.getMinutes();
+    const minutosLimite    = 9*60 + 20; // 560
+    const [hSel, mSel]     = hora.split(':').map(Number);
+    const minutosEscolhido = hSel*60 + mSel;
+
+    if (dataReq.getTime() === new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime()) {
+      if (minutosAgora > minutosLimite)
+        return res.status(400).json({ erro: 'Janela de agendamento de hoje já encerrou.' });
+      if (minutosAgora >= minutosEscolhido)
+        return res.status(400).json({ erro: 'Esse horário já passou.' });
+    }
+
     // ─── Usuário existe? ────────────────────────────────────────────────
     const usuario = await Usuario.findById(usuario_id);
     if (!usuario)
       return res.status(404).json({ erro: 'Usuário não encontrado.' });
 
-    // ─── Datas úteis do dia ­­­──────────────────────────────────────────
-    const d        = new Date(data);
-    const inicio   = new Date(d.setHours(0, 0, 0, 0));
-    const fim      = new Date(d.setHours(23, 59, 59, 999));
+    const d      = new Date(data);
+    const inicio = new Date(d.setHours(0, 0, 0, 0));
+    const fim    = new Date(d.setHours(23, 59, 59, 999));
 
-    /* ➊  BLOQUEIA se o mesmo usuário já tiver um agendamento nesse dia */
     const jaTem = await Agendamento.findOne({
       usuario_id,
       data: { $gte: inicio, $lte: fim }
@@ -46,7 +66,6 @@ exports.store = async (req, res) => {
               'Altere ou cancele o agendamento existente para escolher outro horário.'
       });
 
-    /* ➋  Horário já ocupado? */
     const conflito = await Agendamento.findOne({
       data: { $gte: inicio, $lte: fim },
       hora
@@ -54,14 +73,12 @@ exports.store = async (req, res) => {
     if (conflito)
       return res.status(400).json({ erro: 'Horário já preenchido.' });
 
-    /* ➌  Limite diário (5) atingido? */
     const totalDia = await Agendamento.countDocuments({
       data: { $gte: inicio, $lte: fim }
     });
     if (totalDia >= 5)
       return res.status(400).json({ erro: 'Limite diário de 5 agendamentos atingido.' });
 
-    // ─── Cria o agendamento ────────────────────────────────────────────
     await Agendamento.create({
       usuario_id,
       nome:     usuario.nome,
@@ -80,7 +97,6 @@ exports.store = async (req, res) => {
   }
 };
 
-
 /* ───────── 2) Horários disponíveis ───────── */
 exports.horariosDisponiveis = async (req, res) => {
   try {
@@ -95,12 +111,24 @@ exports.horariosDisponiveis = async (req, res) => {
       data: { $gte: inicio, $lte: fim }
     }).select('hora')).map(a => a.hora);
 
-    res.json(todos.filter(h => !ocupados.includes(h)));
+    const hojeISO = (new Date()).toISOString().slice(0,10);   // "YYYY-MM-DD"
+    let livres = todos.filter(h => !ocupados.includes(h));
+
+    if (dataStr === hojeISO) {
+      const minutosAgora = new Date().getHours()*60 + new Date().getMinutes();
+      livres = livres.filter(h => {
+        const [hh,mm] = h.split(':').map(Number);
+        return (hh*60 + mm) > minutosAgora;
+      });
+    }
+
+    res.json(livres);
   } catch (err) {
     console.error('Erro ao buscar horários:', err);
     res.status(500).json({ erro: 'Erro interno ao buscar horários' });
   }
 };
+
 
 /* ───────── 3) Vagas restantes ───────── */
 exports.vagasRestantes = async (req, res) => {
